@@ -1,32 +1,32 @@
-#include "mod/MyMod.h"
+#include "mod/DoABarrelRoll.h"
 
 #include "ll/api/mod/RegisterHelper.h"
 
-namespace my_mod {
+namespace do_a_barrel_roll {
 
-MyMod& MyMod::getInstance() {
-    static MyMod instance;
+DoABarrelRoll& DoABarrelRoll::getInstance() {
+    static DoABarrelRoll instance;
     return instance;
 }
 
-bool MyMod::load() {
+bool DoABarrelRoll::load() {
     getSelf().getLogger().debug("Loading...");
     // Code for loading the mod goes here.
     return true;
 }
 
-bool MyMod::enable() {
+bool DoABarrelRoll::enable() {
     getSelf().getLogger().debug("Enabling...");
     // Code for enabling the mod goes here.
     return true;
 }
 
-bool MyMod::disable() {
+bool DoABarrelRoll::disable() {
     getSelf().getLogger().debug("Disabling...");
     // Code for disabling the mod goes here.
     return true;
 }
 
-} // namespace my_mod
+} // namespace do_a_barrel_roll
 
-LL_REGISTER_MOD(my_mod::MyMod, my_mod::MyMod::getInstance());
+LL_REGISTER_MOD(do_a_barrel_roll::DoABarrelRoll, do_a_barrel_roll::DoABarrelRoll::getInstance());

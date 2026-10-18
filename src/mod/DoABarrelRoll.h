@@ -2,14 +2,14 @@
 
 #include "ll/api/mod/NativeMod.h"
 
-namespace my_mod {
+namespace do_a_barrel_roll {
 
-class MyMod {
+class DoABarrelRoll {
 
 public:
-    static MyMod& getInstance();
+    static DoABarrelRoll& getInstance();
 
-    MyMod() : mSelf(*ll::mod::NativeMod::current()) {}
+    DoABarrelRoll() : mSelf(*ll::mod::NativeMod::current()) {}
 
     [[nodiscard]] ll::mod::NativeMod& getSelf() const { return mSelf; }
 
@@ -30,4 +30,4 @@ private:
     ll::mod::NativeMod& mSelf;
 };
 
-} // namespace my_mod
+} // namespace do_a_barrel_roll
