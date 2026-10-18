@@ -86,16 +86,25 @@ void pollGamepad(bool allow) {
         return;
     }
     load();
-    XState xstate{};
-    pad.connected = getState && getState(0, &xstate) == ERROR_SUCCESS;
+    // Several XInput slots can be populated (e.g. a physical pad plus an emulated one under Proton), so they are merged.
+    XGamepad gamepad{};
+    double   rx = 0.0, ry = 0.0;
+    pad.connected = false;
+    for (DWORD slot = 0; getState && slot < 4; ++slot) {
+        XState xstate{};
+        if (getState(slot, &xstate) != ERROR_SUCCESS) continue;
+        pad.connected = true;
+        auto const& g = xstate.Gamepad;
+        gamepad.wButtons      |= g.wButtons;
+        gamepad.bLeftTrigger  = std::max(gamepad.bLeftTrigger, g.bLeftTrigger);
+        gamepad.bRightTrigger = std::max(gamepad.bRightTrigger, g.bRightTrigger);
+        double const x = axis(g.sThumbRX), y = axis(g.sThumbRY);
+        if (x * x + y * y > rx * rx + ry * ry) rx = x, ry = y; // the same pad may appear in two slots, so don't sum
+    }
     if (!pad.connected) {
         pad.stickActive = false;
         return;
     }
-
-    auto const& gamepad = xstate.Gamepad;
-    double      rx      = axis(gamepad.sThumbRX);
-    double      ry      = axis(gamepad.sThumbRY);
     radial(rx, ry, std::clamp(state::config.gamepadDeadzone, 0.0, 0.95));
 
     // Tracked even while unfocused: the game may still see the stick, so its turn deltas must be dropped.
