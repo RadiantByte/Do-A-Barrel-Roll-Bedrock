@@ -1,6 +1,7 @@
 #include "mod/DoABarrelRoll.h"
 
 #include "ll/api/mod/RegisterHelper.h"
+#include "mod/hooks/State.h"
 
 namespace do_a_barrel_roll {
 
@@ -11,19 +12,41 @@ DoABarrelRoll& DoABarrelRoll::getInstance() {
 
 bool DoABarrelRoll::load() {
     getSelf().getLogger().debug("Loading...");
-    // Code for loading the mod goes here.
+    namespace st = state;
+    st::configPath = getSelf().getConfigDir() / "config.json";
+    if (std::filesystem::exists(st::configPath)) {
+        if (!st::config.load(st::configPath)) {
+            getSelf().getLogger().warn("Could not parse {}, using defaults", st::configPath.string());
+        }
+    } else if (!st::config.save(st::configPath)) {
+        getSelf().getLogger().warn("Could not write default config to {}", st::configPath.string());
+    }
     return true;
 }
 
 bool DoABarrelRoll::enable() {
     getSelf().getLogger().debug("Enabling...");
-    // Code for enabling the mod goes here.
+    hooks::installInput();
+    hooks::installCamera();
+    hooks::installPlayer();
+    hooks::installPlayerModel();
+    hooks::installServer();
+    hooks::installHud();
+    hooks::installKeys();
+    hooks::installGamepad();
     return true;
 }
 
 bool DoABarrelRoll::disable() {
     getSelf().getLogger().debug("Disabling...");
-    // Code for disabling the mod goes here.
+    hooks::uninstallGamepad();
+    hooks::uninstallKeys();
+    hooks::uninstallHud();
+    hooks::uninstallServer();
+    hooks::uninstallPlayerModel();
+    hooks::uninstallPlayer();
+    hooks::uninstallCamera();
+    hooks::uninstallInput();
     return true;
 }
 
