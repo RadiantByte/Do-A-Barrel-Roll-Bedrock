@@ -9,6 +9,16 @@ A port of [Do a Barrel Roll](https://codeberg.org/enjarai/do-a-barrel-roll) by e
 | Minecraft Bedrock for Windows | 1.26.51.01       |
 | LeviLamina                    | 26.51.6 (client) |
 
+## Installation
+
+With [lip](https://github.com/LiteLDev/lip), from the game directory:
+
+```
+lip install github.com/theaddonn/Do-A-Barrel-Roll-Bedrock
+```
+
+Or download `Do-A-Barrel-Roll-Bedrock-client-windows-x64.zip` from the [releases](https://github.com/theaddonn/Do-A-Barrel-Roll-Bedrock/releases) and extract the `DoABarrelRoll` folder into `mods/`.
+
 ## Features
 
 - Full pitch, yaw and roll while gliding, with smoothing, banking, automatic righting and momentum-based mouse.

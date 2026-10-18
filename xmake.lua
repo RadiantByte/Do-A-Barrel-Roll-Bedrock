@@ -18,7 +18,7 @@ end
 
 target("DoABarrelRoll")
     add_rules("@levibuildscript/linkrule")
-    add_rules("@levibuildscript/modpacker", {modName = "DoABarrelRoll", modVersion = "0.1.0", modPlatform = "client"})
+    add_rules("@levibuildscript/modpacker", {modName = "DoABarrelRoll", modVersion = "0.1.0-mc26.51", modPlatform = "client"})
     if is_plat("windows") then
         add_defines("NOMINMAX", "UNICODE", "_HAS_CXX23=1")
         set_exceptions("none") -- To avoid conflicts with /EHa.

@@ -7,14 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-mc26.51] - 2026-10-18
+
 ### Added
 
-- Port of Do a Barrel Roll flight, camera, HUD, thrust and controller support.
-
-### Fixed
-
-- Controller triggers (RT/LT) now apply thrust.
-
-### Removed
-
-- Debug logging and the Bedrock calibration options (`debug_logging`, `turn_delta_scale`, `swap_turn_axes`, `camera_roll_sign`, `thrust_direct_write`).
+- First public Windows x64 client release for Minecraft Bedrock 1.26.51.01 and LeviLamina 26.51.6.
+- Full pitch, yaw and roll elytra flight, with smoothing, banking and optional automatic righting.
+- Camera roll in first and third person, and player model roll in third person.
+- Horizon line and momentum-based mouse mode with a moving crosshair.
+- Thrust with campfire smoke particles, in singleplayer and worlds you host.
+- Keyboard keys (bindable in the controls screen) and Xbox controller support.
+- On-screen messages when toggling the mod or thrust.
+- A lip v3 client package manifest that keeps `config.json` across updates.
