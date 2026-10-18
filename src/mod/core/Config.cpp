@@ -96,13 +96,8 @@ bool Config::load(const std::filesystem::path& path) {
 
     const json& misc = sub(general, "misc");
     get(misc, "enable_easter_eggs", enableEasterEggs);
-    get(misc, "debug_logging", debugLogging);
-    get(misc, "turn_delta_scale", turnDeltaScale);
-    get(misc, "swap_turn_axes", swapTurnAxes);
-    get(misc, "camera_roll_sign", cameraRollSign);
     get(misc, "enable_gamepad", enableGamepad);
     get(misc, "gamepad_deadzone", gamepadDeadzone);
-    get(misc, "thrust_direct_write", thrustDirectWrite);
     get(misc, "thrust_allow_remote", thrustAllowRemote);
 
     const json& s = sub(root, "sensitivity");
@@ -139,13 +134,8 @@ bool Config::save(const std::filesystem::path& path) const {
             {"thrust_particles", thrustParticles}}},
           {"misc",
            {{"enable_easter_eggs", enableEasterEggs},
-            {"debug_logging", debugLogging},
-            {"turn_delta_scale", turnDeltaScale},
-            {"swap_turn_axes", swapTurnAxes},
-            {"camera_roll_sign", cameraRollSign},
             {"enable_gamepad", enableGamepad},
             {"gamepad_deadzone", gamepadDeadzone},
-            {"thrust_direct_write", thrustDirectWrite},
             {"thrust_allow_remote", thrustAllowRemote}}}}},
         {"sensitivity",
          {{"camera_smoothing", writeSens(smoothing)},

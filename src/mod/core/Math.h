@@ -1,17 +1,7 @@
 #pragma once
 
-// Engine-independent math helpers for the Do a Barrel Roll port.
-//
-// CONVENTIONS (inherited from Java Minecraft, which the original mod targets):
-//  * Angles stored in "player" variables (pitch/yaw/roll) are DEGREES.
-//  * Internal trig is done in RADIANS (see kToRad / kToDeg, = MagicNumbers.TORAD/TODEG).
-//  * Pitch: positive = looking DOWN, range [-90, 90].
-//  * Yaw: 0 = +Z (south), +90 = -X (west), i.e. look vector =
-//        (-sin(yaw)cos(pitch), -sin(pitch), cos(yaw)cos(pitch)).
-//  * Roll: positive = clockwise as seen by the player (right wing down).
-//  UNCERTAIN: Bedrock is believed to share the pitch/yaw convention above (pitch+ = down, yaw 0 = +Z).
-//  If the hook layer finds otherwise, convert at the boundary (see FlightController docs) rather than
-//  editing the math here.
+// Conventions (from Java Minecraft, verified on Bedrock): angles are degrees, trig is done in radians.
+// Pitch: positive looks down, [-90, 90]. Yaw 0 = +Z, +90 = -X. Roll: positive = right wing down.
 
 #include <cmath>
 #include <functional>
@@ -39,20 +29,16 @@ struct Vec3 {
     double y = 0.0;
     double z = 0.0;
 
-    Vec3 operator+(Vec3 o) const { return {x + o.x, y + o.y, z + o.z}; }
-    Vec3 operator-(Vec3 o) const { return {x - o.x, y - o.y, z - o.z}; }
-    Vec3 operator*(double s) const { return {x * s, y * s, z * s}; }
+    Vec3                 operator+(Vec3 o) const { return {x + o.x, y + o.y, z + o.z}; }
+    Vec3                 operator*(double s) const { return {x * s, y * s, z * s}; }
     [[nodiscard]] double dot(Vec3 o) const { return x * o.x + y * o.y + z * o.z; }
-    [[nodiscard]] Vec3   cross(Vec3 o) const {
-        return {y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x};
-    }
+    [[nodiscard]] Vec3   cross(Vec3 o) const { return {y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x}; }
     [[nodiscard]] double length() const { return std::sqrt(dot(*this)); }
 
-    // Right-handed rotations, identical to JOML's Vector3d.rotateX/Y/Z (angle in radians).
+    // Same as JOML's rotateX/Y/Z and rotateAxis (radians).
     [[nodiscard]] Vec3 rotatedX(double a) const;
     [[nodiscard]] Vec3 rotatedY(double a) const;
     [[nodiscard]] Vec3 rotatedZ(double a) const;
-    // Rodrigues rotation around a (unit) axis, same as JOML's rotateAxis.
     [[nodiscard]] Vec3 rotatedAxis(double angle, Vec3 axis) const;
 };
 
@@ -60,26 +46,21 @@ struct Vec3 {
 [[nodiscard]] inline double clamp(double v, double lo, double hi) { return v < lo ? lo : (v > hi ? hi : v); }
 [[nodiscard]] inline double sign(double v) { return v > 0 ? 1.0 : (v < 0 ? -1.0 : 0.0); }
 
-/// Vanilla Entity#getRotationVector / getRotationVecClient. Degrees in.
+/// Vanilla Entity#getRotationVector.
 [[nodiscard]] Vec3 lookVector(double pitchDeg, double yawDeg);
 
-/// Port of ModMath.forBresenhamLine (integer line rasterisation, endpoints inclusive).
+/// Integer line rasterisation, endpoints inclusive (ModMath.forBresenhamLine).
 void forBresenhamLine(int x0, int y0, int x1, int y1, const std::function<void(int, int)>& consumer);
 
-/// Result of changeLookInLocalFrame.
 struct LookResult {
-    double pitch; // degrees (unclamped; caller clamps like vanilla if wanted)
-    double yaw;   // degrees, continuous with the input yaw (input yaw + wrapped delta)
-    double roll;  // degrees, in [-180, 180]
-    double deltaPitch;
-    double deltaYaw;
-    double deltaRoll; // newRoll - currentRoll (may be ~+-360 across the wrap; used for prevRoll bookkeeping)
+    double pitch; // degrees, unclamped
+    double yaw;   // degrees, continuous with the input yaw
+    double roll;  // degrees, [-180, 180]
+    double deltaRoll; // newRoll - currentRoll (can be ~+-360 across the wrap)
 };
 
-/// Port of ClientPlayerEntityMixin#doABarrelRoll$changeElytraLook(float pitch, float yaw, float roll).
-/// pitchIn/yawIn/rollIn are the *already sensitivity-scaled* deltas in "mouse units"; like vanilla they are
-/// multiplied by 0.15 to get degrees. Applies pitch about the player's local left axis, yaw about the local
-/// up axis, roll about the facing axis, then re-derives world pitch/yaw/roll.
+/// Port of ClientPlayerEntityMixin#changeElytraLook. The inputs are sensitivity-scaled "mouse units", scaled by 0.15
+/// to degrees like vanilla. Pitch rotates about the local left axis, yaw about local up, roll about the facing axis.
 [[nodiscard]] LookResult changeLookInLocalFrame(
     double currentPitchDeg,
     double currentYawDeg,

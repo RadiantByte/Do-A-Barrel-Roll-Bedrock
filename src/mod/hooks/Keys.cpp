@@ -1,9 +1,7 @@
-// Keybinds via ll::input::KeyRegistry (keys appear in the controls screen under the mod's name; key codes are
-// Windows virtual-key codes). Handlers cannot be unregistered, so they are gated by `active`.
-//
-// Defaults follow the Java mod: toggle = I, yaw left/right = A/D, thrust forward = W; the rest are unbound
-// (bind them in the controls menu). Note A/D/W also strafe/walk in vanilla.
+// Keybinds via ll::input::KeyRegistry (listed in the controls screen under the mod's name; key codes are Windows
+// virtual-key codes). Handlers cannot be unregistered, so they are gated by `active`.
 
+#include "mod/DoABarrelRoll.h"
 #include "mod/hooks/Feedback.h"
 #include "mod/hooks/State.h"
 
@@ -16,8 +14,8 @@
 #endif
 #include <windows.h>
 #pragma comment(lib, "user32.lib")
+
 #include <vector>
-#include "mod/DoABarrelRoll.h"
 
 namespace do_a_barrel_roll::hooks {
 
@@ -26,19 +24,17 @@ namespace {
 bool active     = false;
 bool registered = false;
 
-struct Held {
-    char const*                 name;
-    ll::input::KeyHandle*       handle;
-    bool core::KeyStates::*     field;
-    bool                        last = false;
+struct HeldKey {
+    ll::input::KeyHandle*   handle;
+    bool core::KeyStates::* field;
 };
-std::vector<Held> helds;
+std::vector<HeldKey> heldKeys;
 
-// Registers the key for the controls screen. The held state itself is polled (see ClientUpdateKeys), because the
-// registry's down/up handlers are not reliable for continuous state.
+// The held state is polled (see PollKeysHook) because the registry's down/up handlers are not reliable for
+// continuous state.
 void hold(char const* name, std::vector<int> codes, bool core::KeyStates::*field) {
     auto& key = ll::input::KeyRegistry::getInstance().getOrCreateKey(name, codes, true);
-    helds.push_back({name, &key, field});
+    heldKeys.push_back({&key, field});
 }
 
 void press(char const* name, std::vector<int> codes, void (*fn)()) {
@@ -46,14 +42,6 @@ void press(char const* name, std::vector<int> codes, void (*fn)()) {
     key.registerButtonDownHandler([fn](FocusImpact, IClientInstance&) {
         if (active) fn();
     });
-}
-
-bool gameFocused() {
-    HWND fg = GetForegroundWindow();
-    if (!fg) return false;
-    DWORD pid = 0;
-    GetWindowThreadProcessId(fg, &pid);
-    return pid == GetCurrentProcessId();
 }
 
 // Polls the held keys once per rendered frame, only while the HUD is the top screen and the window is focused.
@@ -67,22 +55,18 @@ LL_TYPE_INSTANCE_HOOK(
 ) {
     if (active) {
         if (isInitFinished) flushMessages(*this);
-        bool const poll = isInitFinished && state::isHudTopScreen(*this) && gameFocused();
-        for (auto& h : helds) {
+        bool const poll = isInitFinished && state::isHudTopScreen(*this) && state::isGameFocused();
+        for (auto& held : heldKeys) {
             bool down = false;
             if (poll) {
-                for (int code : h.handle->getKeyCodes()) {
+                for (int code : held.handle->getKeyCodes()) {
                     if (code > 0 && code < 256 && (GetAsyncKeyState(code) & 0x8000)) {
                         down = true;
                         break;
                     }
                 }
             }
-            state::keys.*h.field = down;
-            if (down != h.last) {
-                h.last = down;
-                state::debugLog("key {} -> {}", h.name, down ? "DOWN" : "up");
-            }
+            state::keys.*held.field = down;
         }
     }
     return origin(isInitFinished);
@@ -101,7 +85,9 @@ void installKeys() {
     PollKeysHook::hook();
     if (registered) return;
     registered = true;
-    using K    = core::KeyStates;
+
+    using K = core::KeyStates;
+    // Defaults follow the Java mod; the rest are unbound.
     constexpr int kI = 0x49, kA = 0x41, kD = 0x44, kW = 0x57;
 
     press("key.do_a_barrel_roll.toggle_enabled", {kI}, [] {
@@ -140,7 +126,6 @@ void uninstallKeys() {
     active = false;
     PollKeysHook::unhook();
     state::keys = {};
-    for (auto& h : helds) h.last = false;
 }
 
 } // namespace do_a_barrel_roll::hooks

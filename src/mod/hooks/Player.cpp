@@ -1,15 +1,7 @@
-// Per-tick hook: controller tick, thrust (velocity + smoke particles), jump reset.
+// Per-tick hook: flight controller tick and thrust (velocity + smoke particles).
 //
-// NOT PORTED: activation behaviours that hook the glide-start check (TRIPLE_JUMP / HYBRID): with these set the
-// mod behaves as VANILLA.
-//
-// Thrust application: Bedrock has no travelGliding() to wrap (glide physics runs in component systems), so the
-// delta is added to the current velocity once per tick after the vanilla tick, through the virtual
-// Actor::lerpMotion (the same entry point the SetActorMotion packet uses, which replaces mPosDelta). Fallback
-// (general.misc.thrust_direct_write): write StateVectorComponent::mPosDelta directly.
-//
-// Server agreement: see Server.cpp (in-process server accepts the client position while thrusting). Thrust is not
-// applied when no in-process server is detected, unless general.misc.thrust_allow_remote is set.
+// Bedrock has no travelGliding() to wrap, so thrust is added to the player's velocity once per tick after the
+// vanilla tick. Server agreement is handled in Server.cpp.
 
 #include "mod/hooks/State.h"
 
@@ -28,27 +20,20 @@ void markTick(); // Input.cpp
 
 namespace {
 
-long long lastThrustLog   = -1000;
-long long lastParticleLog = -1000;
-long long lastWhyLog      = -1000;
-long long lastRemoteLog   = -1000;
+constexpr std::int64_t kServerAliveMs = 1500;
 
-// Vanilla particle effect id of campfire_smoke_tall (resource pack particles/campfire_smoke_tall.json). The legacy
-// Level::addParticle(ParticleType::CampfireSmokeTall) path returns null on this version, so go through the particle
-// effect system (LevelListener -> ParticleSystemInterface) of the client level instead.
+// The legacy Level::addParticle path returns null on this version, so use the particle effect system.
 void spawnThrustParticle(LocalPlayer& player, Vec3 const& velocity) {
-    // Java: entityPos - velocity * 0.5 (feet position), campfire_signal_smoke, zero velocity.
-    // Bedrock's getPosition() is the eye position, so use the feet position.
-    Vec3 pos = player.getFeetPos() - velocity * 0.5f;
-    // Level::addParticleEffect(3 args) hides the ILevel convenience overload, so call it through ILevel.
-    auto& level = static_cast<ILevel&>(player.getLevel());
+    Vec3 const pos   = player.getFeetPos() - velocity * 0.5f;
+    auto&      level = static_cast<ILevel&>(player.getLevel()); // Level::addParticleEffect hides the ILevel overload
     level.addParticleEffect(HashedString{"minecraft:campfire_tall_smoke_particle"}, pos);
-    if (state::tickCount - lastParticleLog >= 20) {
-        lastParticleLog = state::tickCount;
-        state::debugLog(
-            "thrust particle effect dispatched at ({:.2f}, {:.2f}, {:.2f}) clientSide={}", pos.x, pos.y, pos.z,
-            level.isClientSide()
-        );
+}
+
+void applyVelocity(LocalPlayer& player, Vec3 const& velocity) {
+    player.lerpMotion(velocity);
+    Vec3 const actual = player.getPosDelta();
+    if (std::abs(actual.x - velocity.x) + std::abs(actual.y - velocity.y) + std::abs(actual.z - velocity.z) > 1e-4f) {
+        const_cast<Vec3&>(player.getPosDelta()) = velocity; // lerpMotion did not stick
     }
 }
 
@@ -65,84 +50,37 @@ LL_TYPE_INSTANCE_HOOK(
 
     state::localPlayerId.store(static_cast<std::int64_t>(getOrCreateUniqueID().rawID));
 
-    auto ps = state::snapshot(*this);
-    state::controller.tick(ps);
+    auto const player = state::snapshot(*this);
+    state::controller.tick(player);
 
-    bool const flying = state::controller.isFallFlying(ps);
-    bool const anyKey = state::keys.thrustForward || state::keys.thrustBackward;
-    if (flying) state::lastFlyingMs.store(state::nowMs());
-    if (flying) {
-        auto t = state::controller.thrust(ps, state::keys, state::tickCount);
-        if (!t) {
-            if (anyKey && state::tickCount - lastWhyLog >= 20) {
-                lastWhyLog = state::tickCount;
-                state::debugLog(
-                    "thrust() -> nullopt: rolling={} enable_thrust={}", state::controller.isRolling(),
-                    state::config.enableThrust
+    if (state::controller.isFallFlying(player)) {
+        auto const now = state::nowMs();
+        state::lastFlyingMs.store(now);
+
+        if (auto const thrust = state::controller.thrust(player, state::inputKeys(), state::tickCount)) {
+            auto const& delta     = thrust->velocityDelta;
+            bool const  thrusting = delta.x != 0.0 || delta.y != 0.0 || delta.z != 0.0;
+            // Thrust needs the in-process server to accept the client position, otherwise a remote server rubber-bands.
+            bool const serverAlive = now - state::lastServerPolicyMs.load() < kServerAliveMs;
+            if (thrusting && (serverAlive || state::config.thrustAllowRemote)) {
+                state::lastThrustMs.store(now);
+                Vec3 const before = getPosDelta();
+                applyVelocity(
+                    *this,
+                    {before.x + static_cast<float>(delta.x),
+                     before.y + static_cast<float>(delta.y),
+                     before.z + static_cast<float>(delta.z)}
                 );
+                if (thrust->spawnParticle) spawnThrustParticle(*this, before);
             }
-        } else {
-            Vec3 const before = getPosDelta();
-            Vec3 const after{
-                before.x + static_cast<float>(t->velocityDelta.x),
-                before.y + static_cast<float>(t->velocityDelta.y),
-                before.z + static_cast<float>(t->velocityDelta.z)
-            };
-            bool thrusting = t->velocityDelta.x != 0.0 || t->velocityDelta.y != 0.0 || t->velocityDelta.z != 0.0;
-            // Thrust needs an in-process server (Server.cpp accepts the client position); a remote vanilla server
-            // would rubber-band the player, so do nothing there.
-            bool const serverAlive = state::nowMs() - state::lastServerPolicyMs.load() < 1500;
-            if (thrusting && !serverAlive && !state::config.thrustAllowRemote) {
-                thrusting = false;
-                if (state::tickCount - lastRemoteLog >= 100) {
-                    lastRemoteLog = state::tickCount;
-                    state::debugLog("thrust disabled: no in-process server movement policy seen (remote server?)");
-                }
-            }
-            if (thrusting) {
-                state::lastThrustMs.store(state::nowMs());
-                char const* how = "direct";
-                if (state::config.thrustDirectWrite) {
-                    const_cast<Vec3&>(getPosDelta()) = after;
-                } else {
-                    lerpMotion(after);
-                    Vec3 const rb = getPosDelta();
-                    if (std::abs(rb.x - after.x) + std::abs(rb.y - after.y) + std::abs(rb.z - after.z) > 1e-4f) {
-                        const_cast<Vec3&>(getPosDelta()) = after; // lerpMotion did not stick: write directly
-                        how                              = "lerpMotion+direct";
-                    } else {
-                        how = "lerpMotion";
-                    }
-                }
-                if (state::tickCount - lastThrustLog >= 20) {
-                    lastThrustLog = state::tickCount;
-                    Vec3 const now = getPosDelta();
-                    state::debugLog(
-                        "thrust applied ({}): delta ({:.4f}, {:.4f}, {:.4f}) vel ({:.3f}, {:.3f}, {:.3f}) -> ({:.3f}, "
-                        "{:.3f}, {:.3f}) readback ({:.3f}, {:.3f}, {:.3f}) | server corrections seen={} overridden={} client rewinds={}",
-                        how, t->velocityDelta.x, t->velocityDelta.y, t->velocityDelta.z,
-                        before.x, before.y, before.z, after.x, after.y, after.z, now.x, now.y, now.z,
-                        state::statCorrectionsSeen.load(), state::statCorrectionsOverridden.load(),
-                        state::statClientRewinds.load()
-                    );
-                }
-            } else if (anyKey && state::tickCount - lastWhyLog >= 20) {
-                lastWhyLog = state::tickCount;
-                state::debugLog("thrust() returned zero delta (already at max speed?)");
-            }
-            if (t->spawnParticle && thrusting) spawnThrustParticle(*this, before);
         }
-    } else if (anyKey && state::tickCount - lastWhyLog >= 20) {
-        lastWhyLog = state::tickCount;
-        state::debugLog("thrust key held but not fall-flying (gliding={})", ps.isGliding);
     }
-    {
-        Vec3 const v = getPosDelta(); // read by the in-process server (Server.cpp) to keep its velocity in sync
-        state::clientVelX.store(v.x);
-        state::clientVelY.store(v.y);
-        state::clientVelZ.store(v.z);
-    }
-    state::controller.onTickMovementEnd(ps.onGround, false);
+
+    Vec3 const velocity = getPosDelta(); // read by the in-process server (Server.cpp)
+    state::clientVelX.store(velocity.x);
+    state::clientVelY.store(velocity.y);
+    state::clientVelZ.store(velocity.z);
+    state::controller.onTickMovementEnd(player.onGround, false);
 }
 
 } // namespace

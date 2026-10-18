@@ -6,8 +6,13 @@
 namespace do_a_barrel_roll::core {
 
 namespace {
+
+const double kRollReorientCutoff = std::sqrt(10.0 / 3.0); // RotationModifiers.ROLL_REORIENT_CUTOFF
+constexpr int kGraceTicks        = 6;
+
 double fixNaN(double v) { return std::isnan(v) ? 0.0 : v; }
 RotationInstant fixNaN(RotationInstant r) { return {fixNaN(r.pitch), fixNaN(r.yaw), fixNaN(r.roll)}; }
+
 } // namespace
 
 RotationInstant RotationInstant::addAbsolute(double x, double y, double currentRoll) const {
@@ -15,22 +20,17 @@ RotationInstant RotationInstant::addAbsolute(double x, double y, double currentR
     return {pitch - y * c - x * s, yaw - y * s + x * c, roll};
 }
 
-// ---- Activation ---------------------------------------------------------------------------------------------
-
 bool FlightController::isFallFlying(const PlayerState& p) const {
     if (isFallFlyingRaw(p)) return true;
-    // Grace: the glide flag dropped, but we were flying a moment ago and nothing explains it.
     return mGraceTicks > 0 && mRolling && mConfig.modEnabled && !p.onGround
         && !(mConfig.disableWhenSubmerged && p.isSubmergedInWater);
 }
 
 bool FlightController::isFallFlyingRaw(const PlayerState& p) const {
-    if (!mForceEnabled) {
-        bool hybrid = mConfig.activationBehaviour == ActivationBehaviour::Hybrid
-                   || mConfig.activationBehaviour == ActivationBehaviour::HybridToggle;
-        if (hybrid && !mActivation.thirdJump) return false;
-        if (!mConfig.modEnabled) return false;
-    }
+    bool hybrid = mConfig.activationBehaviour == ActivationBehaviour::Hybrid
+               || mConfig.activationBehaviour == ActivationBehaviour::HybridToggle;
+    if (hybrid && !mActivation.thirdJump) return false;
+    if (!mConfig.modEnabled) return false;
     if (mConfig.disableWhenSubmerged && p.isSubmergedInWater) return false;
     return p.isGliding;
 }
@@ -61,8 +61,6 @@ void FlightController::onTickMovementEnd(bool onGround, bool jumpHeld) {
     mActivation.wasJumping = jumpHeld;
 }
 
-// ---- Roll state ---------------------------------------------------------------------------------------------
-
 float FlightController::getRoll(float tickDelta) const {
     if (tickDelta == 1.0f) return mRoll;
     return static_cast<float>(lerp(tickDelta, mPrevRoll, mRoll));
@@ -86,120 +84,89 @@ float FlightController::cameraRoll(float tickDelta) {
 }
 
 void FlightController::tick(const PlayerState& p) {
-    constexpr int kGraceTicks = 6;
-    bool          raw         = isFallFlyingRaw(p);
-    if (raw) mGraceTicks = kGraceTicks;
+    if (isFallFlyingRaw(p)) mGraceTicks = kGraceTicks;
     else if (mGraceTicks > 0) --mGraceTicks;
-    bool wasRolling = mRolling;
-    // clientTick: clear smoothers (and momentum) when not flying.
-    if (!isFallFlying(p)) {
+
+    mRolling = isFallFlying(p);
+    if (!mRolling) {
         mPitchSmoother.clear();
         mYawSmoother.clear();
         mRollSmoother.clear();
     }
-    // PlayerEntityMixin baseTick tail
-    mRolling  = isFallFlying(p);
-    if (mTransitionLogger && mRolling != wasRolling) {
-        std::string why = mRolling ? "glide flag set"
-                        : !mConfig.modEnabled ? "mod disabled"
-                        : p.onGround ? "on ground"
-                        : (mConfig.disableWhenSubmerged && p.isSubmergedInWater) ? "submerged"
-                        : "glide flag dropped for " + std::to_string(kGraceTicks) + " ticks";
-        mTransitionLogger(std::string("rolling ") + (mRolling ? "ON" : "OFF") + ": " + why);
-    }
     mPrevRoll = mRoll;
-    if (!mRolling) setRoll(0.0f);
-    // CameraMixin#interpolateRollnt (decays ~half per tick while not rolling)
     if (!mRolling) {
+        setRoll(0.0f);
+        // CameraMixin#interpolateRollnt: decays by half per tick while not rolling
         mLastRollBack = mRollBack;
         mRollBack -= mRollBack * 0.5f;
     }
 }
 
-// ---- Modifiers ----------------------------------------------------------------------------------------------
-
-RotationInstant FlightController::banking(RotationInstant r, const FrameInput& in, double dt, double currentRoll) const {
-    (void)in;
-    double roll = currentRoll * kToRad;
-    // Default expression formulas of ModConfig.advanced:
-    //   banking_x = sin(roll) * cos(pitch) * 10 * banking_strength
-    //   banking_y = (-1 + cos(roll)) * cos(pitch) * 10 * banking_strength
-    // (roll/pitch converted with TO_RAD)
-    double pitch = in.player.pitch * kToRad;
+RotationInstant FlightController::banking(RotationInstant r, const PlayerState& p, double dt) const {
+    // Default formulas of ModConfig.advanced:
+    //   x = sin(roll) * cos(pitch) * 10 * strength, y = (cos(roll) - 1) * cos(pitch) * 10 * strength
+    double roll  = mRoll * kToRad;
+    double pitch = p.pitch * kToRad;
     double s     = mConfig.bankingStrength;
     double dX    = fixNaN(std::sin(roll) * std::cos(pitch) * 10 * s);
     double dY    = fixNaN((-1 + std::cos(roll)) * std::cos(pitch) * 10 * s);
     return r.addAbsolute(dX * dt, dY * dt, roll);
 }
 
-RotationInstant FlightController::reorient(RotationInstant r, double dt, double currentRoll) const {
-    double roll     = currentRoll * kToRad;
-    double strength = 10 * mConfig.rightingStrength;
+RotationInstant FlightController::reorient(RotationInstant r, double dt) const {
+    double roll      = mRoll * kToRad;
+    double strength  = 10 * mConfig.rightingStrength;
     double rollDelta = 0;
     if (-kRollReorientCutoff < roll && roll < kRollReorientCutoff) rollDelta = -std::pow(roll, 3) / 3.0 + roll;
     return r.add(0, 0, -rollDelta * strength * dt);
 }
 
 RotationInstant FlightController::controlSurfaceEfficacy(RotationInstant r, const PlayerState& p) const {
-    // Default for elevator/aileron/rudder formulas: velocity . look. Applied to (pitch, yaw, roll) respectively
-    // (the same value for all three by default).
+    // Default formula for elevator, aileron and rudder alike: velocity . look
     double e = p.velocity.dot(lookVector(p.pitch, p.yaw));
     if (std::isnan(e)) e = 1;
     return r.multiply(e, e, e);
 }
 
-RotationInstant FlightController::applyModifiers(RotationInstant delta, const FrameInput& in, double dt, double currentRoll) {
+RotationInstant FlightController::applyModifiers(RotationInstant delta, const FrameInput& in, double dt) {
     delta = fixNaN(delta);
 
-    // EARLY_CAMERA_MODIFIERS, in ascending priority: configureRotation (1000) then buttonControls (2000).
-    // 1) Mouse axis mapping: unless switch_roll_and_yaw, mouse X (in the yaw slot) becomes roll and vice versa.
-    {
-        double pitch = delta.pitch, yaw = delta.yaw, roll = delta.roll;
-        if (!mConfig.switchRollAndYaw) std::swap(yaw, roll);
-        if (mConfig.invertPitch) pitch = -pitch;
-        delta = {pitch, yaw, roll};
-    }
-    // 2) Key controls (power 1800 deg-ish per second; scaled by sensitivity afterwards). Not affected by the swap.
-    {
-        double d = 1800.0 * dt, p = 0, y = 0, r = 0;
-        if (in.keys.pitchUp) p -= d;
-        if (in.keys.pitchDown) p += d;
-        if (in.keys.yawLeft) y -= d;
-        if (in.keys.yawRight) y += d;
-        if (in.keys.rollLeft) r -= d;
-        if (in.keys.rollRight) r += d;
-        delta = delta.add(p, y, r);
-    }
-    delta = fixNaN(delta);
+    // Mouse X arrives in the yaw slot: it rolls unless switchRollAndYaw.
+    if (!mConfig.switchRollAndYaw) std::swap(delta.yaw, delta.roll);
+    if (mConfig.invertPitch) delta.pitch = -delta.pitch;
 
-    // Sensitivity (desktop)
+    // Key controls, not affected by the swap
+    double d = 1800.0 * dt, p = 0, y = 0, r = 0;
+    if (in.keys.pitchUp) p -= d;
+    if (in.keys.pitchDown) p += d;
+    if (in.keys.yawLeft) y -= d;
+    if (in.keys.yawRight) y += d;
+    if (in.keys.rollLeft) r -= d;
+    if (in.keys.rollRight) r += d;
+    delta = fixNaN(delta.add(p, y, r));
+
     delta = fixNaN(delta.applySensitivity(mConfig.desktop));
 
-    // Gamepad (ControlifyCompat.applyToRotation): rate based, degrees-ish per second = axis * 1200 * sensitivity.controller.
-    // Stick Y is pitch and stick X is roll (yaw with switch_roll_and_yaw, in which case the yaw buttons roll).
+    // Gamepad is rate based. Stick Y pitches, stick X rolls (yaws with switchRollAndYaw, then the bumpers roll).
     if (in.pad.any()) {
         double m     = dt * 1200.0;
         double pitch = -in.pad.stickY;
         if (mConfig.invertPitch) pitch = -pitch;
         double roll = in.pad.stickX, yaw = in.pad.yaw;
         if (mConfig.switchRollAndYaw) std::swap(roll, yaw);
-        delta = fixNaN(delta.add(
-            pitch * m * mConfig.controller.pitch, yaw * m * mConfig.controller.yaw, roll * m * mConfig.controller.roll
-        ));
+        const auto& c = mConfig.controller;
+        delta         = fixNaN(delta.add(pitch * m * c.pitch, yaw * m * c.yaw, roll * m * c.roll));
     }
 
-    // LATE_CAMERA_MODIFIERS (priority 1000): efficacy, smoothing, banking, reorient
     if (mConfig.simulateControlSurfaceEfficacy) delta = controlSurfaceEfficacy(delta, in.player);
-    {
-        const auto& sm = mConfig.smoothing;
-        delta = {
-            sm.pitch == 0 ? delta.pitch : mPitchSmoother.smooth(delta.pitch, 1 / sm.pitch * dt),
-            sm.yaw == 0 ? delta.yaw : mYawSmoother.smooth(delta.yaw, 1 / sm.yaw * dt),
-            sm.roll == 0 ? delta.roll : mRollSmoother.smooth(delta.roll, 1 / sm.roll * dt),
-        };
-    }
-    if (mConfig.enableBanking) delta = banking(delta, in, dt, currentRoll);
-    if (mConfig.automaticRighting) delta = reorient(delta, dt, currentRoll);
+    const auto& sm = mConfig.smoothing;
+    delta          = {
+        sm.pitch == 0 ? delta.pitch : mPitchSmoother.smooth(delta.pitch, 1 / sm.pitch * dt),
+        sm.yaw == 0 ? delta.yaw : mYawSmoother.smooth(delta.yaw, 1 / sm.yaw * dt),
+        sm.roll == 0 ? delta.roll : mRollSmoother.smooth(delta.roll, 1 / sm.roll * dt),
+    };
+    if (mConfig.enableBanking) delta = banking(delta, in.player, dt);
+    if (mConfig.automaticRighting) delta = reorient(delta, dt);
     return fixNaN(delta);
 }
 
@@ -214,32 +181,24 @@ FrameResult FlightController::frame(const FrameInput& in) {
         return res;
     }
 
-    double dt = in.dt;
-    double cx = in.mouseDx, cy = in.mouseDy;
-    Vec2   turn{cx, cy}; // (x -> yaw slot, y -> pitch slot)
-
-    // MouseMixin#updateMouse
+    Vec2 turn{in.mouseDx, in.mouseDy}; // x -> yaw slot, y -> pitch slot
     if (mConfig.momentumBasedMouse) {
-        mMouseTurnVec = mMouseTurnVec + Vec2{cx, cy} * (1.0 / 300.0);
+        mMouseTurnVec = mMouseTurnVec + turn * (1.0 / 300.0);
         if (mMouseTurnVec.lengthSquared() > 1.0) mMouseTurnVec.normalize();
-        Vec2   ready    = mMouseTurnVec;
         double deadzone = mConfig.momentumMouseDeadzone;
-        if (ready.lengthSquared() < deadzone * deadzone) ready = {};
-        ready = ready * (1200.0 * dt);
-        turn  = ready;
+        bool inDeadzone = mMouseTurnVec.lengthSquared() < deadzone * deadzone;
+        turn            = inDeadzone ? Vec2{} : mMouseTurnVec * (1200.0 * in.dt);
     } else {
         mMouseTurnVec = {};
     }
 
-    RotationInstant delta{turn.y, turn.x, 0.0};
-    delta = applyModifiers(delta, in, dt, mRoll);
+    RotationInstant delta = applyModifiers({turn.y, turn.x, 0.0}, in, in.dt);
+    LookResult      look  = changeLookInLocalFrame(
+        in.player.pitch, in.player.yaw, mRoll, delta.pitch, delta.yaw, delta.roll
+    );
 
-    LookResult look = changeLookInLocalFrame(in.player.pitch, in.player.yaw, mRoll, delta.pitch, delta.yaw, delta.roll);
-
-    // vanilla changeLookDirection clamps pitch
     res.pitch = clamp(look.pitch, -90.0, 90.0);
     res.yaw   = look.yaw;
-
     mRoll += static_cast<float>(look.deltaRoll);
     mPrevRoll += static_cast<float>(look.deltaRoll);
     res.roll    = mRoll;
@@ -247,16 +206,12 @@ FrameResult FlightController::frame(const FrameInput& in) {
     return res;
 }
 
-// ---- Thrust ---------------------------------------------------------------------------------------------
-
 std::optional<ThrustResult>
-FlightController::thrust(const PlayerState& p, const KeyStates& keys, long long tickCount, double throttleOverride) const {
+FlightController::thrust(const PlayerState& p, const KeyStates& keys, long long tickCount) const {
     if (!mRolling || !mConfig.enableThrust) return std::nullopt;
 
     Vec3   rotation = lookVector(p.pitch, p.yaw);
-    Vec3   velocity = p.velocity;
     double throttle = keys.thrustForward ? 1 : keys.thrustBackward ? -1 : 0;
-    if (!std::isnan(throttleOverride)) throttle = throttleOverride; // ThrustEvents.modifyThrustInput hook
 
     ThrustResult out;
     if (mConfig.thrustParticles) {
@@ -264,10 +219,10 @@ FlightController::thrust(const PlayerState& p, const KeyStates& keys, long long 
         if (throttle > 0.1 && tickCount % (11 - density) == 0) out.spawnParticle = true;
     }
 
-    double maxSpeed      = mConfig.maxThrust;
-    double speedIncrease = std::max(maxSpeed - velocity.length() * sign(rotation.dot(velocity) * throttle), 0.0) / maxSpeed * throttle;
-    double acceleration  = mConfig.thrustAcceleration * speedIncrease;
-    out.velocityDelta    = rotation * acceleration;
+    double maxSpeed = mConfig.maxThrust;
+    double speedIncrease =
+        std::max(maxSpeed - p.velocity.length() * sign(rotation.dot(p.velocity) * throttle), 0.0) / maxSpeed * throttle;
+    out.velocityDelta = rotation * (mConfig.thrustAcceleration * speedIncrease);
     return out;
 }
 

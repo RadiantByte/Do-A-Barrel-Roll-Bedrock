@@ -1,7 +1,5 @@
 #include "mod/hooks/Feedback.h"
 
-#include "mod/hooks/State.h"
-
 #include "mc/client/game/ClientInstance.h"
 #include "mc/client/gui/GuiData.h"
 
@@ -30,7 +28,6 @@ void flushMessages(ClientInstance& client) {
     }
     auto gui = client.getGuiData();
     // Only the latest message matters for the action bar.
-    state::debugLog("feedback: {}", messages.back());
     gui->setActionBarMessage(messages.back(), std::nullopt);
 }
 

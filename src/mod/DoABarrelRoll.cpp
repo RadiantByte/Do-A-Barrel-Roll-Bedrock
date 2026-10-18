@@ -11,21 +11,19 @@ DoABarrelRoll& DoABarrelRoll::getInstance() {
 }
 
 bool DoABarrelRoll::load() {
-    getSelf().getLogger().debug("Loading...");
-    namespace st = state;
-    st::configPath = getSelf().getConfigDir() / "config.json";
-    if (std::filesystem::exists(st::configPath)) {
-        if (!st::config.load(st::configPath)) {
-            getSelf().getLogger().warn("Could not parse {}, using defaults", st::configPath.string());
+    auto& logger      = getSelf().getLogger();
+    state::configPath = getSelf().getConfigDir() / "config.json";
+    if (std::filesystem::exists(state::configPath)) {
+        if (!state::config.load(state::configPath)) {
+            logger.warn("Could not parse {}, using defaults", state::configPath.string());
         }
-    } else if (!st::config.save(st::configPath)) {
-        getSelf().getLogger().warn("Could not write default config to {}", st::configPath.string());
+    } else if (!state::config.save(state::configPath)) {
+        logger.warn("Could not write default config to {}", state::configPath.string());
     }
     return true;
 }
 
 bool DoABarrelRoll::enable() {
-    getSelf().getLogger().debug("Enabling...");
     hooks::installInput();
     hooks::installCamera();
     hooks::installPlayer();
@@ -38,7 +36,6 @@ bool DoABarrelRoll::enable() {
 }
 
 bool DoABarrelRoll::disable() {
-    getSelf().getLogger().debug("Disabling...");
     hooks::uninstallGamepad();
     hooks::uninstallKeys();
     hooks::uninstallHud();

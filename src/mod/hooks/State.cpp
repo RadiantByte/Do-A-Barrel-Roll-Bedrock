@@ -5,24 +5,30 @@
 #include "mc/deps/core/math/Vec2.h"
 #include "mc/deps/core/math/Vec3.h"
 
-#include <fstream>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 
 namespace do_a_barrel_roll::state {
 
-void debugWrite(std::string const& line) {
-    static std::ofstream out(configPath.parent_path() / "debug.log", std::ios::trunc);
-    out << line << '\n' << std::flush;
+core::KeyStates inputKeys() {
+    core::KeyStates merged = keys;
+    merged.thrustForward |= pad.thrustForward;
+    merged.thrustBackward |= pad.thrustBackward;
+    return merged;
 }
 
 core::PlayerState snapshot(LocalPlayer& player) {
     core::PlayerState s;
-    // ASSUMPTION: Bedrock rotation is Vec2(x = pitch, y = yaw) in degrees, pitch + = down, yaw 0 = +Z.
+    // Bedrock rotation is Vec2(x = pitch, y = yaw) in degrees, pitch + = down.
     Vec2 const& rot = player.getRotation();
     s.pitch         = rot.x;
     s.yaw           = rot.y;
-    // ASSUMPTION: posDelta is blocks per tick (same as Java getVelocity()).
-    Vec3 const& v = player.getPosDelta();
-    s.velocity    = {v.x, v.y, v.z};
+
+    Vec3 const& velocity = player.getPosDelta();
+    s.velocity           = {velocity.x, velocity.y, velocity.z};
+
     s.isGliding          = player.isGliding();
     s.isSubmergedInWater = player.isInWater();
     s.onGround           = player.isOnGround();
@@ -31,6 +37,14 @@ core::PlayerState snapshot(LocalPlayer& player) {
 }
 
 bool isFlightActive(LocalPlayer& player) { return controller.isFallFlying(snapshot(player)); }
+
+bool isGameFocused() {
+    HWND foreground = GetForegroundWindow();
+    if (!foreground) return false;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(foreground, &pid);
+    return pid == GetCurrentProcessId();
+}
 
 bool isHudTopScreen(ClientInstance& client) { return client.getTopScreenName() == "hud_screen"; }
 
