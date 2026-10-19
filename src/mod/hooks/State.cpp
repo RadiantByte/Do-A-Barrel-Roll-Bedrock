@@ -4,6 +4,7 @@
 #include "mc/client/player/LocalPlayer.h"
 #include "mc/deps/core/math/Vec2.h"
 #include "mc/deps/core/math/Vec3.h"
+#include "mc/world/actor/provider/PlayerMoveInput.h"
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -32,7 +33,7 @@ core::PlayerState snapshot(LocalPlayer& player) {
     s.isGliding          = player.isGliding();
     s.isSubmergedInWater = player.isInWater();
     s.onGround           = player.isOnGround();
-    s.isJumping          = false;
+    s.isJumping          = PlayerMoveInput::isJumping(player.getEntityContext());
     return s;
 }
 
