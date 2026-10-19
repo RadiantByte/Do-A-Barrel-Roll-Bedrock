@@ -9,7 +9,8 @@
     "tags": [
       "platform:levilamina",
       "type:mod",
-      "platform:client"
+      "platform:client",
+      "platform:server"
     ],
     "avatar_url": "https://github.com/theaddonn.png"
   },
@@ -37,6 +38,42 @@
       ],
       "preserve_files": [
         "mods/DoABarrelRoll/config/config.json"
+      ],
+      "remove_files": [],
+      "scripts": {
+        "pre_install": [],
+        "install": [],
+        "post_install": [],
+        "pre_pack": [],
+        "post_pack": [],
+        "pre_uninstall": [],
+        "uninstall": [],
+        "post_uninstall": []
+      }
+    },
+    {
+      "label": "server",
+      "platform": "win-x64",
+      "dependencies": {
+        "github.com/LiteLDev/LeviLamina": "26.51.6"
+      },
+      "assets": [
+        {
+          "type": "zip",
+          "urls": [
+            "https://{{tooth}}/releases/download/v{{version}}/Do-A-Barrel-Roll-Bedrock-server-windows-x64.zip"
+          ],
+          "placements": [
+            {
+              "type": "dir",
+              "src": "DoABarrelRoll/",
+              "dest": "plugins/DoABarrelRoll/"
+            }
+          ]
+        }
+      ],
+      "preserve_files": [
+        "plugins/DoABarrelRoll/config/config.json"
       ],
       "remove_files": [],
       "scripts": {

@@ -2,6 +2,7 @@
 // the mod owns the camera, the forward tilt (x) is derived from the mod's pitch instead of the clamped game pitch.
 // applyGlobalAnims rotates about X by x, then about Y by y (skipped when y == 0).
 
+#include "mod/hooks/Net.h"
 #include "mod/hooks/State.h"
 
 #include "ll/api/memory/Hook.h"
@@ -34,8 +35,13 @@ LL_STATIC_HOOK(
     auto result = origin(mob, alpha, isFirstPersonPlayer);
     if (!result || isFirstPersonPlayer) return result;
     auto client = ll::service::getClientInstance();
-    if (!client || static_cast<Actor const*>(client->getLocalPlayer()) != static_cast<Actor const*>(&mob))
+    if (!client || static_cast<Actor const*>(client->getLocalPlayer()) != static_cast<Actor const*>(&mob)) {
+        if (auto const roll =
+                otherPlayerRoll(static_cast<std::int64_t>(const_cast<Mob&>(mob).getOrCreateUniqueID().rawID))) {
+            result->second = *roll;
+        }
         return result;
+    }
 
     if (state::cameraOverride) {
         float t       = static_cast<float>(MobGliding::getFallFlyTicks(mob.getEntityContext())) + alpha;

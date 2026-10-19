@@ -25,14 +25,14 @@ bool active     = false;
 bool registered = false;
 
 struct HeldKey {
-    ll::input::KeyHandle*   handle;
+    ll::input::KeyHandle* handle;
     bool core::KeyStates::* field;
 };
 std::vector<HeldKey> heldKeys;
 
 // The held state is polled (see PollKeysHook) because the registry's down/up handlers are not reliable for
 // continuous state.
-void hold(char const* name, std::vector<int> codes, bool core::KeyStates::*field) {
+void hold(char const* name, std::vector<int> codes, bool core::KeyStates::* field) {
     auto& key = ll::input::KeyRegistry::getInstance().getOrCreateKey(name, codes, true);
     heldKeys.push_back({&key, field});
 }
@@ -91,24 +91,36 @@ void installKeys() {
     constexpr int kI = 0x49, kA = 0x41, kD = 0x44, kW = 0x57;
 
     press("key.do_a_barrel_roll.toggle_enabled", {kI}, [] {
+        if (state::config.serverForceEnabled) {
+            showMessage(
+                "\xC2\xA7"
+                "cDo a Barrel Roll is forced on by the server"
+            );
+            return;
+        }
         state::config.modEnabled = !state::config.modEnabled;
-        DoABarrelRoll::getInstance().getSelf().getLogger().info(
-            "Do a Barrel Roll {}", state::config.modEnabled ? "enabled" : "disabled"
-        );
         showMessage(
-            state::config.modEnabled ? "\xC2\xA7" "aEnabled \xC2\xA7rDo a Barrel Roll"
-                                     : "\xC2\xA7" "cDisabled \xC2\xA7rDo a Barrel Roll"
+            state::config.modEnabled ? "\xC2\xA7"
+                                       "aEnabled \xC2\xA7rDo a Barrel Roll"
+                                     : "\xC2\xA7"
+                                       "cDisabled \xC2\xA7rDo a Barrel Roll"
         );
         save();
     });
     press("key.do_a_barrel_roll.toggle_thrust", {}, [] {
+        if (state::config.serverBlockThrust) {
+            showMessage(
+                "\xC2\xA7"
+                "cThrusting is disabled by the server"
+            );
+            return;
+        }
         state::config.enableThrust = !state::config.enableThrust;
-        DoABarrelRoll::getInstance().getSelf().getLogger().info(
-            "Thrust {}", state::config.enableThrust ? "enabled" : "disabled"
-        );
         showMessage(
-            state::config.enableThrust ? "\xC2\xA7" "aEnabled \xC2\xA7rThrusting"
-                                       : "\xC2\xA7" "cDisabled \xC2\xA7rThrusting"
+            state::config.enableThrust ? "\xC2\xA7"
+                                         "aEnabled \xC2\xA7rThrusting"
+                                       : "\xC2\xA7"
+                                         "cDisabled \xC2\xA7rThrusting"
         );
         save();
     });

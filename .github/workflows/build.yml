@@ -10,6 +10,7 @@ jobs:
       matrix:
         target_type:
           - client
+          - server
     steps:
       - uses: actions/checkout@v7
 

@@ -65,6 +65,13 @@ struct Config {
     Sensitivity desktop;
     Sensitivity controller;
 
+    /// Server overrides, never saved: they shadow the user's values while connected to a server mod.
+    bool serverForceEnabled = false;
+    bool serverBlockThrust  = false;
+
+    [[nodiscard]] bool effectiveEnabled() const { return modEnabled || serverForceEnabled; }
+    [[nodiscard]] bool effectiveThrust() const { return enableThrust && !serverBlockThrust; }
+
     /// Loads the Java mod's nested JSON layout. Missing file, missing or unknown keys keep defaults.
     /// Returns false only if the file exists but is unparsable.
     bool load(const std::filesystem::path& path);

@@ -7,10 +7,10 @@ namespace do_a_barrel_roll::core {
 
 namespace {
 
-const double kRollReorientCutoff = std::sqrt(10.0 / 3.0); // RotationModifiers.ROLL_REORIENT_CUTOFF
-constexpr int kGraceTicks        = 6;
+const double  kRollReorientCutoff = std::sqrt(10.0 / 3.0); // RotationModifiers.ROLL_REORIENT_CUTOFF
+constexpr int kGraceTicks         = 6;
 
-double fixNaN(double v) { return std::isnan(v) ? 0.0 : v; }
+double          fixNaN(double v) { return std::isnan(v) ? 0.0 : v; }
 RotationInstant fixNaN(RotationInstant r) { return {fixNaN(r.pitch), fixNaN(r.yaw), fixNaN(r.roll)}; }
 
 } // namespace
@@ -22,7 +22,7 @@ RotationInstant RotationInstant::addAbsolute(double x, double y, double currentR
 
 bool FlightController::isFallFlying(const PlayerState& p) const {
     if (isFallFlyingRaw(p)) return true;
-    return mGraceTicks > 0 && mRolling && mConfig.modEnabled && !p.onGround
+    return mGraceTicks > 0 && mRolling && mConfig.effectiveEnabled() && !p.onGround
         && !(mConfig.disableWhenSubmerged && p.isSubmergedInWater);
 }
 
@@ -30,7 +30,7 @@ bool FlightController::isFallFlyingRaw(const PlayerState& p) const {
     bool hybrid = mConfig.activationBehaviour == ActivationBehaviour::Hybrid
                || mConfig.activationBehaviour == ActivationBehaviour::HybridToggle;
     if (hybrid && !mActivation.thirdJump) return false;
-    if (!mConfig.modEnabled) return false;
+    if (!mConfig.effectiveEnabled()) return false;
     if (mConfig.disableWhenSubmerged && p.isSubmergedInWater) return false;
     return p.isGliding;
 }
@@ -76,7 +76,7 @@ void FlightController::setRoll(float roll) {
 
 float FlightController::cameraRoll(float tickDelta) {
     if (mRolling) {
-        float r = getRoll(tickDelta);
+        float r   = getRoll(tickDelta);
         mRollBack = mLastRollBack = r;
         return r;
     }
@@ -97,8 +97,8 @@ void FlightController::tick(const PlayerState& p) {
     if (!mRolling) {
         setRoll(0.0f);
         // CameraMixin#interpolateRollnt: decays by half per tick while not rolling
-        mLastRollBack = mRollBack;
-        mRollBack -= mRollBack * 0.5f;
+        mLastRollBack  = mRollBack;
+        mRollBack     -= mRollBack * 0.5f;
     }
 }
 
@@ -185,30 +185,28 @@ FrameResult FlightController::frame(const FrameInput& in) {
     if (mConfig.momentumBasedMouse) {
         mMouseTurnVec = mMouseTurnVec + turn * (1.0 / 300.0);
         if (mMouseTurnVec.lengthSquared() > 1.0) mMouseTurnVec.normalize();
-        double deadzone = mConfig.momentumMouseDeadzone;
-        bool inDeadzone = mMouseTurnVec.lengthSquared() < deadzone * deadzone;
-        turn            = inDeadzone ? Vec2{} : mMouseTurnVec * (1200.0 * in.dt);
+        double deadzone   = mConfig.momentumMouseDeadzone;
+        bool   inDeadzone = mMouseTurnVec.lengthSquared() < deadzone * deadzone;
+        turn              = inDeadzone ? Vec2{} : mMouseTurnVec * (1200.0 * in.dt);
     } else {
         mMouseTurnVec = {};
     }
 
     RotationInstant delta = applyModifiers({turn.y, turn.x, 0.0}, in, in.dt);
-    LookResult      look  = changeLookInLocalFrame(
-        in.player.pitch, in.player.yaw, mRoll, delta.pitch, delta.yaw, delta.roll
-    );
+    LookResult look = changeLookInLocalFrame(in.player.pitch, in.player.yaw, mRoll, delta.pitch, delta.yaw, delta.roll);
 
-    res.pitch = clamp(look.pitch, -90.0, 90.0);
-    res.yaw   = look.yaw;
-    mRoll += static_cast<float>(look.deltaRoll);
-    mPrevRoll += static_cast<float>(look.deltaRoll);
-    res.roll    = mRoll;
-    res.handled = true;
+    res.pitch    = clamp(look.pitch, -90.0, 90.0);
+    res.yaw      = look.yaw;
+    mRoll       += static_cast<float>(look.deltaRoll);
+    mPrevRoll   += static_cast<float>(look.deltaRoll);
+    res.roll     = mRoll;
+    res.handled  = true;
     return res;
 }
 
 std::optional<ThrustResult>
 FlightController::thrust(const PlayerState& p, const KeyStates& keys, long long tickCount) const {
-    if (!mRolling || !mConfig.enableThrust) return std::nullopt;
+    if (!mRolling || !mConfig.effectiveThrust()) return std::nullopt;
 
     Vec3   rotation = lookVector(p.pitch, p.yaw);
     double throttle = keys.thrustForward ? 1 : keys.thrustBackward ? -1 : 0;
