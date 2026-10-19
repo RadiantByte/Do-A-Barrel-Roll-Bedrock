@@ -7,15 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0-mc26.51] - 2026-10-19
+
 ### Added
 
 - Server variant for Bedrock Dedicated Server (LeviLamina server) with client/server networking: thrust on remote servers, other players see your roll, server-controlled config (`allowThrusting`, `forceEnabled`, `forceInstalled`, `maxThrustSpeed`).
-- Activation modes (`vanilla`, triple jump, hybrid, hybrid toggle).
+- Activation modes (vanilla, triple jump, hybrid, hybrid toggle). Triple jump is untested against the server-side glide start.
 
 ### Fixed
 
-- Third-person model loop while gliding.
-- Thrust particles spawning at cruise speed.
+- Third-person model orientation through loops.
+- Thrust particles now also spawn at cruise speed.
 
 ## [0.1.0-mc26.51] - 2026-10-18
 
