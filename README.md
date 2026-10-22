@@ -1,3 +1,5 @@
+<img src="resources/pack_icon.png" alt="Do a Barrel Roll icon" width="96" align="right">
+
 # Do a Barrel Roll (Bedrock)
 
 A port of [Do a Barrel Roll](https://codeberg.org/enjarai/do-a-barrel-roll) by enjarai to Minecraft Bedrock Edition, as a [LeviLamina](https://github.com/LiteLDev/LeviLamina) client mod. It adds full pitch, yaw and roll to elytra flight.
@@ -116,4 +118,4 @@ Pass `--target_type=client` (default) or `--target_type=server` to `xmake f` to 
 
 ## License
 
-GPL-3.0, like the original mod. Credit for Do a Barrel Roll goes to [enjarai](https://codeberg.org/enjarai).
+GPL-3.0, like the original mod. Credit for Do a Barrel Roll goes to [enjarai](https://codeberg.org/enjarai); the icon is by Mizeno, from the original mod.

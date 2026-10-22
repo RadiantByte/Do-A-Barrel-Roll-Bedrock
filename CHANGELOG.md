@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Pack icon (by Mizeno, from the Java mod), used as the tooth avatar.
+
 ## [0.2.0-mc26.51] - 2026-10-19
 
 ### Added
