@@ -55,14 +55,13 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: ~/.xmake
-          key: xmake-android-arm64-r28c-${{ hashFiles('xmake.lua', 'xmake/*.lua') }}
-          restore-keys: xmake-android-arm64-r28c-
+          key: xmake-android-arm64-r28c-api28-ndk-v2-${{ hashFiles('xmake.lua', 'xmake/*.lua') }}
       - name: Configure Android
-        run: xmake f -c -y -p android -a arm64-v8a -m release --ndk="$ANDROID_NDK_HOME" --ndk_sdkver=28
+        run: xmake f -c -y -p android -a arm64-v8a -m release --toolchain=ndk --runtimes=c++_shared --ndk="$ANDROID_NDK_HOME" --ndk_sdkver=28
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
       - name: Build Android
-        run: xmake -y
+        run: xmake -v -y
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ github.event.repository.name }}-${{ github.sha }}-client-android-arm64-v8a

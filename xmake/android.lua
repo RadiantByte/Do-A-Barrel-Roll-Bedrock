@@ -4,6 +4,7 @@ local root = os.projectdir()
 
 target("DoABarrelRoll")
     set_kind("shared")
+    set_toolchains("ndk")
     set_basename("DoABarrelRoll")
     set_prefixname("")
     set_targetdir(path.join(root, "bin", "android"))
@@ -29,7 +30,32 @@ target("DoABarrelRoll")
     end
     on_load(function(target)
         import("core.project.config")
+        import("detect.sdks.find_ndk")
         assert((config.get("target_type") or "client") == "client", "Android supports the client target only")
+        local api = tonumber(config.get("ndk_sdkver") or 28)
+        local ndk = find_ndk(config.get("ndk"), {force = true, arch = target:arch(), sdkver = api, compiler = "clang"})
+        assert(ndk and ndk.bindir and ndk.sysroot, "A complete Android LLVM NDK is required")
+        local suffix = os.host() == "windows" and ".exe" or ""
+        local tools = {
+            cc = {"clang", "clang"},
+            cxx = {"clangxx", "clang++"},
+            as = {"clang", "clang"},
+            ld = {"clangxx", "clang++"},
+            sh = {"clangxx", "clang++"},
+            ar = {"ar", "llvm-ar"},
+            strip = {"strip", "llvm-strip"}
+        }
+        for kind, tool in pairs(tools) do
+            local program = path.join(ndk.bindir, tool[2] .. suffix)
+            assert(os.isfile(program), "Missing NDK tool: %s", program)
+            target:set("toolset", kind, tool[1] .. "@" .. program)
+        end
+        local triple = "--target=aarch64-linux-android" .. api
+        local sysroot = "--sysroot=" .. os.args(ndk.sysroot)
+        target:add("cxflags", triple, sysroot, {force = true})
+        target:add("asflags", triple, sysroot, {force = true})
+        target:add("ldflags", triple, sysroot, "--rtlib=compiler-rt", "-stdlib=libc++", {force = true})
+        target:add("shflags", triple, sysroot, "--rtlib=compiler-rt", "-stdlib=libc++", {force = true})
     end)
     after_build(function(target)
         import("lib.detect.find_tool")
