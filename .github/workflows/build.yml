@@ -51,11 +51,15 @@ jobs:
         id: ndk
         with:
           ndk-version: r28c
-          local-cache: true
+          local-cache: false
+      - name: Check NDK compiler
+        run: '"$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++" --version'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
       - uses: actions/cache@v6
         with:
-          path: ~/.xmake
-          key: xmake-android-arm64-r28c-api28-ndk-v2-${{ hashFiles('xmake.lua', 'xmake/*.lua') }}
+          path: ~/.xmake/packages
+          key: xmake-android-packages-r28c-api28-v3-${{ hashFiles('xmake.lua', 'xmake/*.lua') }}
       - name: Configure Android
         run: xmake f -c -y -p android -a arm64-v8a -m release --toolchain=ndk --runtimes=c++_shared --ndk="$ANDROID_NDK_HOME" --ndk_sdkver=28
         env:
