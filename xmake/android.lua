@@ -1,7 +1,6 @@
 set_version("1.0.0")
 set_allowedarchs("arm64-v8a")
 add_requires("nlohmann_json v3.12.0")
-assert((get_config("target_type") or "client") == "client", "Android supports the client target only")
 local root = os.projectdir()
 
 target("DoABarrelRoll")
@@ -29,6 +28,10 @@ target("DoABarrelRoll")
     if is_mode("release") then
         set_optimize("fast")
     end
+    on_load(function(target)
+        import("core.project.config")
+        assert((config.get("target_type") or "client") == "client", "Android supports the client target only")
+    end)
     after_build(function(target)
         import("lib.detect.find_tool")
         os.tryrm(path.join(target:targetdir(), "DoABarrelRoll.sym"))
