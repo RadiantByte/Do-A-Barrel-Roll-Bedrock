@@ -1,5 +1,4 @@
 set_version("1.0.0")
-set_allowedarchs("arm64-v8a")
 add_requires("nlohmann_json v3.12.0")
 local root = os.projectdir()
 

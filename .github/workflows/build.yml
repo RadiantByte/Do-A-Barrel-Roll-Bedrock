@@ -29,7 +29,7 @@ jobs:
           llvm-version: 22
       - run: xmake repo -u
       - name: Configure Windows
-        run: xmake f -y -p windows -a x64 -m release --target_type=${{ matrix.target_type }}
+        run: xmake f -c -y -p windows -a x64 -m release --target_type=${{ matrix.target_type }}
       - name: Build Windows
         run: xmake -y
       - uses: actions/upload-artifact@v7
@@ -58,7 +58,7 @@ jobs:
           key: xmake-android-arm64-r28c-${{ hashFiles('xmake.lua', 'xmake/*.lua') }}
           restore-keys: xmake-android-arm64-r28c-
       - name: Configure Android
-        run: xmake f -y -p android -a arm64-v8a -m release --ndk="$ANDROID_NDK_HOME" --ndk_sdkver=28
+        run: xmake f -c -y -p android -a arm64-v8a -m release --ndk="$ANDROID_NDK_HOME" --ndk_sdkver=28
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
       - name: Build Android

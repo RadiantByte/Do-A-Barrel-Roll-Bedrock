@@ -1,5 +1,4 @@
 set_version("0.2.0-mc26.51")
-set_allowedarchs("x64")
 local root = os.projectdir()
 
 add_repositories("levimc-repo https://github.com/LiteLDev/xmake-repo.git")
