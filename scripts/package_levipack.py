@@ -33,7 +33,6 @@ def main():
         package.write(library, library.name)
         package.write(icon, "icon.png")
         package.write(license_file, "LICENSE")
-        package.write(root / "NOTICE.md", "NOTICE.md")
     print(args.output.resolve())
 
 
